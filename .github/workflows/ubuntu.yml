@@ -27,11 +27,12 @@ jobs:
         sudo apt-get install -y build-essential
         sudo apt-get install -y libglx-dev
         sudo apt-get install -y libx11-dev
+        sudo apt-get install -y xorg-dev
 
     - name: Configure build
       working-directory: ${{github.workspace}}/${{env.build_dir}}
       shell: bash
-      run: cmake $GITHUB_WORKSPACE -DCMAKE_BUILD_TYPE=${{env.config}}
+      run: cmake .. -DCMAKE_BUILD_TYPE=${{env.config}}
 
     - name: Build sources
       working-directory: ${{github.workspace}}/${{env.build_dir}}
