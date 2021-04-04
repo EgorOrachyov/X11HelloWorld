@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.17)
+cmake_minimum_required(VERSION 3.11)
 project(X11HelloWorld)
 
 message(STATUS "Use X11 library for native window management")
