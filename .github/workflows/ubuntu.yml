@@ -24,7 +24,7 @@ jobs:
       shell: bash 
       run: |
         sudo apt-get update -y
-        sudo apt-get install -y build-essential
+        sudo apt-get install build-essential libxmu-dev libxi-dev libgl-dev
         sudo apt-get install -y libglx-dev
         sudo apt-get install -y libx11-dev
         sudo apt-get install -y xorg-dev
