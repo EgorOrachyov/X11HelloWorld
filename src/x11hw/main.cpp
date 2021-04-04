@@ -81,27 +81,28 @@ x11hw::HwGeometry::InitParams GetTriangleParams() {
 
 const void* GetTriangleData() {
     static const float vertices[] = {
-         0.0f,  0.0f,   1.0f, 0.0f, 0.0f,
-        -0.5f,  1.0f,   0.0f, 1.0f, 0.0f,
-         0.5f,  1.0f,   0.0f, 0.0f, 1.0f
+    //  vec2 position      vec3 color
+         0.0f,  0.0f,      1.0f, 0.0f, 0.0f,
+        -0.5f,  1.0f,      0.0f, 1.0f, 0.0f,
+         0.5f,  1.0f,      0.0f, 0.0f, 1.0f
     };
 
     return vertices;
 }
 
 int main(int argc, const char* const *argv) {
-    // Window (background) setting
-    glm::vec4 clearColor{0.145, 0.522, 0.294, 1.0f};
-    glm::uvec2 windowSize{1280, 720};
+    // Window (background color = #25854b) setting
+    glm::vec4   clearColor{0.145, 0.522, 0.294, 1.0f};
+    glm::uvec2  windowSize{1280, 720};
     std::string name = "MAIN_WINDOW";
     std::string title = "Main Window";
-    float gamma = 2.2f;
+    float       gamma = 2.2f;
 
     // For triangle drawing
-    bool shouldClose = false;
-    bool showTriangle = false;
-    glm::ivec2 mousePosition;
-    glm::vec2 triangleSize{120.0f, 120.0f};
+    bool        shouldClose = false;
+    bool        showTriangle = false;
+    glm::ivec2  mousePosition;
+    glm::vec2   triangleSize{120.0f, 120.0f};
 
     // Create window manager and primary window
     auto windowManager = std::make_shared<x11hw::HwWindowManager>();
@@ -174,6 +175,7 @@ int main(int argc, const char* const *argv) {
         window->SwapBuffers();
     }
 
+    // Explicitly release in reverse order for safety
     window = nullptr;
     windowManager = nullptr;
 
