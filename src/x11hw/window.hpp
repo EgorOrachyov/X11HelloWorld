@@ -26,6 +26,8 @@
 #define X11HELLOWORLD_WINDOW_HPP
 
 #include <X11/Xlib.h>
+#include <X11/Xutil.h>
+#include <GL/glx.h>
 #include <glm/vec2.hpp>
 #include <functional>
 #include <string>
@@ -85,6 +87,9 @@ namespace x11hw {
         }
 
     private:
+        static const int GLX_MAJOR_MIN = 1;
+        static const int GLX_MINOR_MIN = 2;
+
         friend class HwWindowManager;
         void NotifyInput(const EventData& event);
         void NotifyClose();
@@ -97,11 +102,14 @@ namespace x11hw {
         glm::uvec2 mFramebufferSize{};
 
         long mEventMask = 0;
-        Atom mAtomWmDeleteWindow;
+        Atom mAtomWmDeleteWindow{};
         Window mHnd{};
-        Display* mDisplay;
-        GC mGC;
+        Display* mDisplay = nullptr;
+        XVisualInfo* mVisualInfo = nullptr;
+        GLXContext mContext = nullptr;
+        Colormap mColorMap;
         int mScreen;
+
         HwWindowManager* mManager;
 
         std::vector<std::function<void(const EventData& event)>> mOnInputCallbacks;

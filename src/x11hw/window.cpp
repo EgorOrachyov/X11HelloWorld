@@ -24,9 +24,15 @@
 
 #include <x11hw/window.hpp>
 #include <x11hw/window_manager.hpp>
+#include <GL/glx.h>
 #include <stdexcept>
 #include <utility>
 #include <cassert>
+
+#define CHECK_MSG(condition, message) \
+    if (!(condition)) { throw std::runtime_error("X11 Window: \"" #condition "\":" message); } else { }
+
+#define CHECK(condition) CHECK_MSG(condition, "")
 
 namespace x11hw {
 
@@ -49,36 +55,84 @@ namespace x11hw {
         assert(mManager);
         assert(mSize.x > 0 & mSize.y > 0);
 
-        mDisplay = XOpenDisplay(nullptr);
+        // Setup connection to the server
+        {
+            mDisplay = XOpenDisplay(nullptr);
+            CHECK_MSG(mDisplay, "Failed to create Display");
 
-        if (mDisplay == nullptr) {
-            throw std::runtime_error("Failed to open Display");
+            mScreen = XDefaultScreen(mDisplay);
         }
 
-        mScreen = XDefaultScreen(mDisplay);
-        mHnd = XCreateSimpleWindow(mDisplay, XRootWindow(mDisplay, mScreen), 0, 0, mSize.x, mSize.y, 1, XBlackPixel(mDisplay, mScreen), XWhitePixel(mDisplay, mScreen));
+        // Query glx info and prepare visuals
+        {
+            GLint glxMajor, glxMinor;
+            glXQueryVersion(mDisplay, &glxMajor, &glxMinor);
 
-        if (!mHnd) {
-            throw std::runtime_error("Failed to create window");
+            if (glxMajor < GLX_MAJOR_MIN || (glxMajor == GLX_MAJOR_MIN && glxMinor < GLX_MINOR_MIN)) {
+                throw std::runtime_error("GLX 1.2 or greater is required");
+            }
+
+            GLint glxAttributes[] = {
+                GLX_RGBA,
+                GLX_DOUBLEBUFFER,
+                GLX_DEPTH_SIZE,     24,
+                GLX_STENCIL_SIZE,   8,
+                GLX_RED_SIZE,       8,
+                GLX_GREEN_SIZE,     8,
+                GLX_BLUE_SIZE,      8,
+                GLX_SAMPLE_BUFFERS, 0,
+                GLX_SAMPLES,        0,
+                None
+            };
+
+            mVisualInfo = glXChooseVisual(mDisplay, mScreen, glxAttributes);
+            CHECK_MSG(mVisualInfo, "Failed to create VisualInfo");
         }
 
-        // Setup params
-        mEventMask = ButtonMotionMask | ButtonPressMask | ButtonReleaseMask | ExposureMask | ResizeRedirectMask;
+        mEventMask =
+           ButtonMotionMask   |
+           ButtonPressMask    |
+           ButtonReleaseMask  |
+           ExposureMask       |
+           StructureNotifyMask;
+
+        mColorMap = XCreateColormap(mDisplay, XRootWindow(mDisplay, mScreen), mVisualInfo->visual, AllocNone);
+
+        unsigned long windowAttributesMask =
+           CWBackPixel  |
+           CWColormap   |
+           CWBorderPixel|
+           CWEventMask  ;
+        XSetWindowAttributes windowAttributes;
+        windowAttributes.border_pixel = XBlackPixel(mDisplay, mScreen);
+        windowAttributes.background_pixel = XWhitePixel(mDisplay, mScreen);
+        windowAttributes.override_redirect = True;
+        windowAttributes.colormap = mColorMap;
+        windowAttributes.event_mask = mEventMask;
+
+        mHnd = XCreateWindow(mDisplay, XRootWindow(mDisplay, mScreen), 0, 0, mSize.x, mSize.y, 1, mVisualInfo->depth, InputOutput, mVisualInfo->visual, windowAttributesMask, &windowAttributes);
+        CHECK_MSG(mHnd, "Failed to create window");
+
+        mContext = glXCreateContext(mDisplay, mVisualInfo, NULL, GL_TRUE);
+        CHECK_MSG(mContext, "Failed to create GL context");
+
+        MakeContextCurrent();
+
+        // Setup
         mAtomWmDeleteWindow = XInternAtom(mDisplay, "WM_DELETE_WINDOW", False);
-
-        if (!XSetWMProtocols(mDisplay, mHnd, &mAtomWmDeleteWindow, 1)) {
-            throw std::runtime_error("Failed to set WM protocols");
-        }
-
-        XSelectInput(mDisplay, mHnd, mEventMask);
-        XStoreName(mDisplay, mHnd, mTitle.c_str());
+        CHECK(XSetWMProtocols(mDisplay, mHnd, &mAtomWmDeleteWindow, 1));
+        CHECK(XSelectInput(mDisplay, mHnd, mEventMask));
+        CHECK(XStoreName(mDisplay, mHnd, mTitle.c_str()));
 
         // Show the window
-        XClearWindow(mDisplay, mHnd);
-        XMapRaised(mDisplay, mHnd);
+        CHECK(XClearWindow(mDisplay, mHnd));
+        CHECK(XMapRaised(mDisplay, mHnd));
     }
 
     HwWindow::~HwWindow() {
+        glXDestroyContext(mDisplay, mContext);
+        XFreeColormap(mDisplay, mColorMap);
+        XFree(mVisualInfo);
         XDestroyWindow(mDisplay, mHnd);
         XCloseDisplay(mDisplay);
 
@@ -88,11 +142,11 @@ namespace x11hw {
     }
 
     void HwWindow::MakeContextCurrent() {
-
+        CHECK(glXMakeCurrent(mDisplay, mHnd, mContext));
     }
 
     void HwWindow::SwapBuffers() {
-
+        glXSwapBuffers(mDisplay, mHnd);
     }
 
     void HwWindow::NotifyInput(const EventData &event) {
@@ -139,10 +193,15 @@ namespace x11hw {
                     break;
                 }
                 case ClientMessage: {
-                    if (event.xclient.data.l[0] == mAtomWmDeleteWindow) {
+                    if (event.xclient.data.l[0] == (long) mAtomWmDeleteWindow) {
                         NotifyClose();
                         break;
                     }
+                }
+                case ConfigureNotify: {
+                    XConfigureEvent xce = event.xconfigure;
+                    mSize = { xce.width, xce.height};
+                    break;
                 }
                 default:
                     break;
