@@ -2,6 +2,8 @@
 
 # X11 Hello World!
 
+[![Ubuntu](https://github.com/EgorOrachyov/X11HelloWorld/actions/workflows/ubuntu.yml/badge.svg)](https://github.com/EgorOrachyov/X11HelloWorld/actions/workflows/ubuntu.yml)
+
 **X11 windowing system and GLX** based C++ application with basic colored
 triangle following the mouse position, which is rendered with modern OpenGL graphics.
 
@@ -39,9 +41,12 @@ Library uses `X11/Xlib.h` and `X11/Xutil.h` header files and `X11` cmake package
 So, the complete set of x11 tools can be installed as follows (may be too excessive):
 
 ```shell script
-$ sudo apt-get update
-$ sudo apt-get install libglx-dev
-$ sudo apt-get install libx11-dev
+$ sudo apt-get update -y
+$ sudo apt-get install -y build-essential
+$ sudo apt-get install -y libgl1-mesa-dri libgl1-mesa-glx libgl1-mesa-dev
+$ sudo apt-get install -y libxmu-dev libxi-dev libgl-dev libglx-dev
+$ sudo apt-get install -y libx11-dev
+$ sudo apt-get install -y xorg-dev
 ```
 
 ### Get the source code
