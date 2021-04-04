@@ -95,7 +95,7 @@ int main(int argc, const char* const *argv) {
     glm::vec4   clearColor{0.145, 0.522, 0.294, 1.0f};
     glm::uvec2  windowSize{1280, 720};
     std::string name = "MAIN_WINDOW";
-    std::string title = "Main Window";
+    std::string title = "X11 Hello World!";
     float       gamma = 2.2f;
 
     // For triangle drawing

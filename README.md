@@ -1,3 +1,5 @@
+![app](https://github.com/EgorOrachyov/X11HelloWorld/blob/main/docs/pictures/application.gif?raw=true)
+
 # X11 Hello World!
 
 **X11 windowing system and GLX** based C++ application with basic colored
