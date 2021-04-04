@@ -22,8 +22,10 @@
 // SOFTWARE.                                                                      //
 ////////////////////////////////////////////////////////////////////////////////////
 
+#include <GL/glew.h>
 #include <x11hw/window.hpp>
 #include <x11hw/window_manager.hpp>
+#include <stdexcept>
 #include <iostream>
 
 int main(int argc, const char* const *argv) {
@@ -35,6 +37,11 @@ int main(int argc, const char* const *argv) {
 
     auto windowManager = std::make_shared<x11hw::HwWindowManager>();
     auto window = windowManager->CreateWindow(name, title, size);
+
+    if (glewInit() != GLEW_OK) {
+        std::cerr << "Failed to init GLEW" << std::endl;
+        return 1;
+    }
 
     window->SubscribeOnClose([&]() {
         shouldClose = true;
@@ -60,16 +67,8 @@ int main(int argc, const char* const *argv) {
         window->MakeContextCurrent();
 
         glViewport(0, 0, window->GetSize().x, window->GetSize().y);
+        glClearColor(0.3f, 0.1f, 0.2f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT);
-
-        glBegin(GL_TRIANGLES);
-            glColor3f(  1.0f,  0.0f, 0.0f);
-            glVertex3f( 0.0f, -1.0f, 0.0f);
-            glColor3f(  0.0f,  1.0f, 0.0f);
-            glVertex3f(-1.0f,  1.0f, 0.0f);
-            glColor3f(  0.0f,  0.0f, 1.0f);
-            glVertex3f( 1.0f,  1.0f, 0.0f);
-        glEnd();
 
         window->SwapBuffers();
     }

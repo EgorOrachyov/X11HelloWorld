@@ -24,17 +24,26 @@
 
 #include <x11hw/window.hpp>
 #include <x11hw/window_manager.hpp>
-#include <GL/glx.h>
+
 #include <stdexcept>
 #include <utility>
 #include <cassert>
+#include <cstring>
+
+#include <GL/glx.h>
+
 
 #define CHECK_MSG(condition, message) \
     if (!(condition)) { throw std::runtime_error("X11 Window: \"" #condition "\":" message); } else { }
 
 #define CHECK(condition) CHECK_MSG(condition, "")
 
+
 namespace x11hw {
+
+    static bool IsExtensionSupported(const char *extensions, const char *extension) {
+        return std::strstr(extensions, extension) != nullptr;
+    }
 
     static HwWindow::MouseButton GetMouseButtonFromId(unsigned int id) {
         switch (id) {
@@ -56,89 +65,37 @@ namespace x11hw {
         assert(mSize.x > 0 & mSize.y > 0);
 
         // Setup connection to the server
-        {
-            mDisplay = XOpenDisplay(nullptr);
-            CHECK_MSG(mDisplay, "Failed to create Display");
+        OpenConnection();
 
-            mScreen = XDefaultScreen(mDisplay);
-        }
+        // Query glx info
+        ValidateGlxVersion();
 
-        // Query glx info and prepare visuals
-        {
-            GLint glxMajor, glxMinor;
-            glXQueryVersion(mDisplay, &glxMajor, &glxMinor);
+        // Select "best" framebuffer config
+        SelectFBConfig();
 
-            if (glxMajor < GLX_MAJOR_MIN || (glxMajor == GLX_MAJOR_MIN && glxMinor < GLX_MINOR_MIN)) {
-                throw std::runtime_error("GLX 1.2 or greater is required");
-            }
+        // Prepare visuals for window creation
+        CreateVisualInfo();
 
-            GLint glxAttributes[] = {
-                GLX_RGBA,
-                GLX_DOUBLEBUFFER,
-                GLX_DEPTH_SIZE,     24,
-                GLX_STENCIL_SIZE,   8,
-                GLX_RED_SIZE,       8,
-                GLX_GREEN_SIZE,     8,
-                GLX_BLUE_SIZE,      8,
-                GLX_SAMPLE_BUFFERS, 0,
-                GLX_SAMPLES,        0,
-                None
-            };
+        // Create window
+        CreateXWindow();
 
-            mVisualInfo = glXChooseVisual(mDisplay, mScreen, glxAttributes);
-            CHECK_MSG(mVisualInfo, "Failed to create VisualInfo");
-        }
-
-        mEventMask =
-           ButtonMotionMask   |
-           ButtonPressMask    |
-           ButtonReleaseMask  |
-           ExposureMask       |
-           StructureNotifyMask;
-
-        mColorMap = XCreateColormap(mDisplay, XRootWindow(mDisplay, mScreen), mVisualInfo->visual, AllocNone);
-
-        unsigned long windowAttributesMask =
-           CWBackPixel  |
-           CWColormap   |
-           CWBorderPixel|
-           CWEventMask  ;
-        XSetWindowAttributes windowAttributes;
-        windowAttributes.border_pixel = XBlackPixel(mDisplay, mScreen);
-        windowAttributes.background_pixel = XWhitePixel(mDisplay, mScreen);
-        windowAttributes.override_redirect = True;
-        windowAttributes.colormap = mColorMap;
-        windowAttributes.event_mask = mEventMask;
-
-        mHnd = XCreateWindow(mDisplay, XRootWindow(mDisplay, mScreen), 0, 0, mSize.x, mSize.y, 1, mVisualInfo->depth, InputOutput, mVisualInfo->visual, windowAttributesMask, &windowAttributes);
-        CHECK_MSG(mHnd, "Failed to create window");
-
-        mContext = glXCreateContext(mDisplay, mVisualInfo, NULL, GL_TRUE);
-        CHECK_MSG(mContext, "Failed to create GL context");
-
-        MakeContextCurrent();
-
-        // Setup
-        mAtomWmDeleteWindow = XInternAtom(mDisplay, "WM_DELETE_WINDOW", False);
-        CHECK(XSetWMProtocols(mDisplay, mHnd, &mAtomWmDeleteWindow, 1));
-        CHECK(XSelectInput(mDisplay, mHnd, mEventMask));
-        CHECK(XStoreName(mDisplay, mHnd, mTitle.c_str()));
-
-        // Show the window
-        CHECK(XClearWindow(mDisplay, mHnd));
-        CHECK(XMapRaised(mDisplay, mHnd));
+        // Create glx context
+        CreateContext();
     }
 
     HwWindow::~HwWindow() {
         glXDestroyContext(mDisplay, mContext);
-        XFreeColormap(mDisplay, mColorMap);
         XFree(mVisualInfo);
+        XFreeColormap(mDisplay, mColorMap);
         XDestroyWindow(mDisplay, mHnd);
         XCloseDisplay(mDisplay);
 
         mHnd = 0;
         mScreen = 0;
         mDisplay = nullptr;
+        mContext = nullptr;
+        mFbConfig = nullptr;
+        mVisualInfo = nullptr;
     }
 
     void HwWindow::MakeContextCurrent() {
@@ -149,15 +106,169 @@ namespace x11hw {
         glXSwapBuffers(mDisplay, mHnd);
     }
 
+    void HwWindow::OpenConnection() {
+        mDisplay = XOpenDisplay(nullptr);
+        CHECK_MSG(mDisplay, "Failed to create Display");
+        CHECK(XSync(mDisplay, False));
+
+        mScreen = XDefaultScreen(mDisplay);
+    }
+
+    void HwWindow::ValidateGlxVersion() {
+        GLint glxMajor, glxMinor;
+        glXQueryVersion(mDisplay, &glxMajor, &glxMinor);
+
+        if (glxMajor < GLX_MAJOR_MIN || (glxMajor == GLX_MAJOR_MIN && glxMinor < GLX_MINOR_MIN)) {
+            throw std::runtime_error("GLX 1.2 or greater is required");
+        }
+    }
+
+    void HwWindow::CreateVisualInfo() {
+        mVisualInfo = glXGetVisualFromFBConfig(mDisplay, mFbConfig);
+        CHECK_MSG(mVisualInfo, "Failed to create VisualInfo");
+        CHECK_MSG(mVisualInfo->screen == mScreen, "VisualInfo screen does not match window screen");
+    }
+
+    void HwWindow::SelectFBConfig() {
+        GLint glxAttributes[] = {
+            GLX_X_RENDERABLE, True,
+            GLX_DRAWABLE_TYPE, GLX_WINDOW_BIT,
+            GLX_RENDER_TYPE, GLX_RGBA_BIT,
+            GLX_X_VISUAL_TYPE, GLX_TRUE_COLOR,
+            GLX_RED_SIZE, 8,
+            GLX_GREEN_SIZE, 8,
+            GLX_BLUE_SIZE, 8,
+            GLX_ALPHA_SIZE, 8,
+            GLX_DEPTH_SIZE, 24,
+            GLX_STENCIL_SIZE, 8,
+            GLX_DOUBLEBUFFER, True,
+            None
+        };
+
+        int fbConfigsCount = -1;
+        GLXFBConfig* fbConfigs = glXChooseFBConfig(mDisplay, mScreen, glxAttributes, &fbConfigsCount);
+        CHECK_MSG(fbConfigs && fbConfigsCount > 0, "Failed to retrieve framebuffer configs");
+
+        int selectedConfigId = -1;
+        int bestSamples = -1;
+
+        for (int i = 0; i < fbConfigsCount; i++) {
+            XVisualInfo *visualInfo = glXGetVisualFromFBConfig(mDisplay, fbConfigs[i]);
+
+            if (visualInfo) {
+                int sampleBuffers;
+                int samples;
+
+                glXGetFBConfigAttrib(mDisplay, fbConfigs[i], GLX_SAMPLE_BUFFERS, &sampleBuffers);
+                glXGetFBConfigAttrib(mDisplay, fbConfigs[i], GLX_SAMPLES, &samples);
+
+                if (selectedConfigId < 0 || (sampleBuffers && samples > bestSamples) ) {
+                    selectedConfigId = i;
+                    bestSamples = samples;
+                }
+
+                XFree(visualInfo);
+            }
+        }
+
+        mFbConfig = fbConfigs[selectedConfigId];
+        XFree(fbConfigs);
+    }
+
+    void HwWindow::CreateXWindow() {
+        mEventMask =
+            ButtonMotionMask   |
+            ButtonPressMask    |
+            ButtonReleaseMask  |
+            ExposureMask       |
+            StructureNotifyMask;
+
+        mColorMap = XCreateColormap(mDisplay, XRootWindow(mDisplay, mScreen), mVisualInfo->visual, AllocNone);
+
+        unsigned long windowAttributesMask =
+            CWBackPixel  |
+            CWColormap   |
+            CWBorderPixel|
+            CWEventMask  ;
+
+        XSetWindowAttributes windowAttributes;
+        windowAttributes.border_pixel = XBlackPixel(mDisplay, mScreen);
+        windowAttributes.background_pixel = XWhitePixel(mDisplay, mScreen);
+        windowAttributes.override_redirect = True;
+        windowAttributes.colormap = mColorMap;
+        windowAttributes.event_mask = mEventMask;
+
+        mHnd = XCreateWindow(
+            mDisplay,
+            XRootWindow(mDisplay, mScreen),
+            0, 0,
+            mSize.x, mSize.y,
+            1,
+            mVisualInfo->depth,
+            InputOutput,
+            mVisualInfo->visual,
+            windowAttributesMask,
+            &windowAttributes
+        );
+
+        CHECK_MSG(mHnd, "Failed to create window");
+
+        // Events & name setup
+        mAtomWmDeleteWindow = XInternAtom(mDisplay, "WM_DELETE_WINDOW", False);
+        CHECK(XSetWMProtocols(mDisplay, mHnd, &mAtomWmDeleteWindow, 1));
+        CHECK(XSelectInput(mDisplay, mHnd, mEventMask));
+        CHECK(XStoreName(mDisplay, mHnd, mTitle.c_str()));
+
+        // Show the window
+        CHECK(XClearWindow(mDisplay, mHnd));
+        CHECK(XMapRaised(mDisplay, mHnd));
+    }
+
+    void HwWindow::CreateContext() {
+        // Query extensions
+        const char *glxExtensions = glXQueryExtensionsString(mDisplay, mScreen);
+
+        if (IsExtensionSupported(glxExtensions, "GLX_ARB_create_context")) {
+            int contextAttributes[] = {
+                GLX_CONTEXT_MAJOR_VERSION_ARB, 3,
+                GLX_CONTEXT_MINOR_VERSION_ARB, 2,
+                GLX_CONTEXT_FLAGS_ARB, GLX_CONTEXT_FORWARD_COMPATIBLE_BIT_ARB,
+                None
+            };
+
+            typedef GLXContext (*glXCreateContextAttribsARBFunction)(
+                Display*,
+                GLXFBConfig,
+                GLXContext,
+                Bool,
+                const int*
+            );
+
+            auto glXCreateContextAttribsARB = (glXCreateContextAttribsARBFunction)
+                    glXGetProcAddressARB((const GLubyte *) "glXCreateContextAttribsARB");
+            CHECK_MSG(glXCreateContextAttribsARB, "Failed to get glXCreateContextAttribsARB function");
+
+            mContext = glXCreateContextAttribsARB(mDisplay, mFbConfig, nullptr, true, contextAttributes);
+        }
+        else {
+            // Fallback to simple setup
+            mContext = glXCreateNewContext(mDisplay, mFbConfig, GLX_RGBA_TYPE, nullptr, True);
+        }
+        CHECK_MSG(mContext, "Failed to create GL context");
+
+        // Actually bind and make current for convenience
+        MakeContextCurrent();
+    }
+
     void HwWindow::NotifyInput(const EventData &event) {
-        for (auto& c: mOnInputCallbacks) {
-            c(event);
+        for (auto& callback: mOnInputCallbacks) {
+            callback(event);
         }
     }
 
     void HwWindow::NotifyClose() {
-        for (auto& c: mOnCloseCallbacks) {
-            c();
+        for (auto& callback: mOnCloseCallbacks) {
+            callback();
         }
     }
 

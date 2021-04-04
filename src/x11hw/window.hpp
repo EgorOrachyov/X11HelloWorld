@@ -91,6 +91,12 @@ namespace x11hw {
         static const int GLX_MINOR_MIN = 2;
 
         friend class HwWindowManager;
+        void OpenConnection();
+        void ValidateGlxVersion();
+        void CreateVisualInfo();
+        void SelectFBConfig();
+        void CreateXWindow();
+        void CreateContext();
         void NotifyInput(const EventData& event);
         void NotifyClose();
         void CheckEvents();
@@ -107,6 +113,7 @@ namespace x11hw {
         Display* mDisplay = nullptr;
         XVisualInfo* mVisualInfo = nullptr;
         GLXContext mContext = nullptr;
+        GLXFBConfig mFbConfig = nullptr;
         Colormap mColorMap;
         int mScreen;
 
