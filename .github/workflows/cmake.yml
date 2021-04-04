@@ -1,0 +1,39 @@
+name: Ubuntu
+
+on: 
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+    
+
+jobs:
+  build:
+    name: Build X11 Hello World App
+    runs-on: ubuntu-latest
+    env:
+      build_dir: "build"
+      config: "Release"
+
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        submodules: true
+      
+    - name: Install deps
+      shell: bash 
+      run: |
+        sudo apt-get update -y
+        sudo apt-get install -y build-essential
+        sudo apt-get install -y libglx-dev
+        sudo apt-get install -y libx11-dev
+
+    - name: Configure build
+      working-directory: ${{github.workspace}}/${{env.build_dir}}
+      shell: bash
+      run: cmake $GITHUB_WORKSPACE -DCMAKE_BUILD_TYPE=${{env.config}}
+
+    - name: Build sources
+      working-directory: ${{github.workspace}}/${{env.build_dir}}
+      shell: bash
+      run: cmake --build . --verbose -j `nproc`
