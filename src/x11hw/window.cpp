@@ -258,6 +258,11 @@ namespace x11hw {
 
         // Actually bind and make current for convenience
         MakeContextCurrent();
+        QueryFboSize();
+    }
+
+    void HwWindow::QueryFboSize() {
+        mFramebufferSize = mSize;
     }
 
     void HwWindow::NotifyInput(const EventData &event) {
@@ -312,16 +317,13 @@ namespace x11hw {
                 case ConfigureNotify: {
                     XConfigureEvent xce = event.xconfigure;
                     mSize = { xce.width, xce.height};
+                    QueryFboSize();
                     break;
                 }
                 default:
                     break;
             }
         }
-    }
-
-    Window HwWindow::GetHnd() const {
-        return mHnd;
     }
 
 }

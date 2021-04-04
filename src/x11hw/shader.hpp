@@ -22,51 +22,59 @@
 // SOFTWARE.                                                                      //
 ////////////////////////////////////////////////////////////////////////////////////
 
-#include <x11hw/window_manager.hpp>
-#include <x11hw/window.hpp>
-#include <stdexcept>
+#ifndef X11HELLOWORLD_SHADER_HPP
+#define X11HELLOWORLD_SHADER_HPP
+
+#include <GL/glew.h>
+#include <glm/matrix.hpp>
+#include <string>
 
 namespace x11hw {
 
-    HwWindowManager::~HwWindowManager() {
-        for (auto& w: mWindows) {
-            assert(w.second.use_count() == 1);
-        }
-    }
+    class HwShader {
+    public:
+        HwShader(const char* vertexCode, const char* fragmentCode);
+        ~HwShader();
 
-    std::shared_ptr<HwWindow> HwWindowManager::CreateWindow(std::string name, std::string title, glm::uvec2 size) {
-        if (ContainsWindow(name)) {
-            throw std::runtime_error("Windows names must be unique");
-        }
+        /** Bind shader for drawing */
+        void Bind();
+        /** Unbind shader (default will be used for drawing) */
+        void Unbind();
 
-        HwWindow::InitParams params = {
-            name,
-            std::move(title),
-            size,
-            this
-        };
+        /**
+         * Set shader uniform variable
+         * @param name Variable name in the shader
+         * @param val Value to set
+         */
+        void SetFloat(const std::string& name, float val) const;
 
-        // Cool hack, since constructor is private - cannot do this in normal way
-        std::shared_ptr<HwWindow> window{new HwWindow(params)};
-        mWindows.emplace(std::move(name), window);
+        /**
+         * Set shader uniform variable
+         * @param name Variable name in the shader
+         * @param vec Vector to set
+         */
 
-        return window;
-    }
+        void SetVec2(const std::string& name, const glm::vec2& vec) const;
 
-    void HwWindowManager::PollEvents() {
-        for (auto& w: mWindows) {
-            w.second->CheckEvents();
-        }
-    }
+        /**
+         * Set shader uniform variable
+         * @param name Variable name in the shader
+         * @param mat Matrix to set
+         */
+        void SetMatrix4(const std::string& name, const glm::mat4& mat) const;
 
-    bool HwWindowManager::ContainsWindow(const std::string &name) const {
-        auto found = mWindows.find(name);
-        return found != mWindows.end();
-    }
+    private:
+        int GetLocation(const std::string& name) const;
+        void ReleaseInternal();
 
-    std::shared_ptr<class HwWindow> HwWindowManager::GetWindow(const std::string &name) {
-        auto found = mWindows.find(name);
-        return found != mWindows.end()? found->second: nullptr;
-    }
+    private:
+        static const GLuint MAX_STAGES = 2;
+        bool   mIsBound = false;
+        size_t mStagesCount = 0;
+        GLuint mProgram = 0;
+        GLuint mStages[MAX_STAGES] = {};
+    };
 
 }
+
+#endif //X11HELLOWORLD_SHADER_HPP

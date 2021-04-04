@@ -22,51 +22,57 @@
 // SOFTWARE.                                                                      //
 ////////////////////////////////////////////////////////////////////////////////////
 
-#include <x11hw/window_manager.hpp>
-#include <x11hw/window.hpp>
-#include <stdexcept>
+#ifndef X11HELLOWORLD_GEOMETRY_HPP
+#define X11HELLOWORLD_GEOMETRY_HPP
+
+#include <GL/glew.h>
+#include <vector>
 
 namespace x11hw {
 
-    HwWindowManager::~HwWindowManager() {
-        for (auto& w: mWindows) {
-            assert(w.second.use_count() == 1);
-        }
-    }
+    class HwGeometry {
+    public:
 
-    std::shared_ptr<HwWindow> HwWindowManager::CreateWindow(std::string name, std::string title, glm::uvec2 size) {
-        if (ContainsWindow(name)) {
-            throw std::runtime_error("Windows names must be unique");
-        }
-
-        HwWindow::InitParams params = {
-            name,
-            std::move(title),
-            size,
-            this
+        struct Attribute {
+            size_t offset;
+            size_t components;
+            GLenum baseType;
+            bool normalize;
         };
 
-        // Cool hack, since constructor is private - cannot do this in normal way
-        std::shared_ptr<HwWindow> window{new HwWindow(params)};
-        mWindows.emplace(std::move(name), window);
+        struct InitParams {
+            size_t verticesCount = 0;
+            size_t stride = 0;
+            GLenum topology = 0;
+            std::vector<Attribute> attributes;
+        };
 
-        return window;
-    }
+        explicit HwGeometry(const InitParams& params);
+        ~HwGeometry();
 
-    void HwWindowManager::PollEvents() {
-        for (auto& w: mWindows) {
-            w.second->CheckEvents();
-        }
-    }
+        /**
+         * Update vertex data of the geometry
+         * @param offset Byte offset
+         * @param size Byte size
+         * @param vertexData Data to write
+         */
+        void Update(size_t offset, size_t size, const void *vertexData) const;
 
-    bool HwWindowManager::ContainsWindow(const std::string &name) const {
-        auto found = mWindows.find(name);
-        return found != mWindows.end();
-    }
+        /**
+         * Issue geometry draw
+         */
+        void Draw() const;
 
-    std::shared_ptr<class HwWindow> HwWindowManager::GetWindow(const std::string &name) {
-        auto found = mWindows.find(name);
-        return found != mWindows.end()? found->second: nullptr;
-    }
+        size_t GetBufferSize() const;
+
+    private:
+        size_t mVerticesCount = 0;
+        size_t mStride = 0;
+        GLenum mTopology = 0;
+        GLuint mVAO = 0;
+        GLuint mVBO = 0;
+    };
 
 }
+
+#endif //X11HELLOWORLD_GEOMETRY_HPP

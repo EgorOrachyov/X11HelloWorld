@@ -23,7 +23,12 @@ set(X11HELLOWORLD_SOURCES
         src/x11hw/window.cpp
         src/x11hw/window.hpp
         src/x11hw/window_manager.cpp
-        src/x11hw/window_manager.hpp)
+        src/x11hw/window_manager.hpp
+        src/x11hw/shader.cpp
+        src/x11hw/shader.hpp
+        src/x11hw/geometry.cpp
+        src/x11hw/geometry.hpp
+        )
 
 message(STATUS "Configure \"x11helloworld\" as final executable application")
 add_executable(x11helloworld ${X11HELLOWORLD_SOURCES})

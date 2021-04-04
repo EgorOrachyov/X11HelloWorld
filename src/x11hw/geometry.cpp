@@ -22,51 +22,74 @@
 // SOFTWARE.                                                                      //
 ////////////////////////////////////////////////////////////////////////////////////
 
-#include <x11hw/window_manager.hpp>
-#include <x11hw/window.hpp>
-#include <stdexcept>
+#include <x11hw/geometry.hpp>
+#include <cassert>
 
 namespace x11hw {
 
-    HwWindowManager::~HwWindowManager() {
-        for (auto& w: mWindows) {
-            assert(w.second.use_count() == 1);
+    HwGeometry::HwGeometry(const InitParams &params) {
+        assert(params.topology == GL_TRIANGLES);
+        assert(params.stride > 0);
+        assert(params.verticesCount > 0);
+        assert(!params.attributes.empty());
+
+        mTopology = params.topology;
+        mStride = params.stride;
+        mVerticesCount = params.verticesCount;
+
+        glGenVertexArrays(1, &mVAO);
+        glBindVertexArray(mVAO);
+
+        glGenBuffers(1, &mVBO);
+        glBindBuffer(GL_ARRAY_BUFFER, mVBO);
+        glBufferData(GL_ARRAY_BUFFER, GetBufferSize(), nullptr, GL_STATIC_DRAW);
+
+        for (size_t i = 0; i < params.attributes.size(); i++) {
+            auto& attrib = params.attributes[i];
+
+            glEnableVertexAttribArray(i);
+            glVertexAttribDivisor(i, 0);
+            glVertexAttribPointer(
+                i,
+                attrib.components,
+                attrib.baseType,
+                attrib.normalize ? GL_TRUE : GL_FALSE,
+                mStride,
+                (void *) attrib.offset
+            );
+        }
+
+        glBindVertexArray(0);
+        glBindBuffer(GL_ARRAY_BUFFER, 0);
+    }
+
+    HwGeometry::~HwGeometry() {
+        if (mVAO) {
+            glDeleteVertexArrays(1, &mVAO);
+            glDeleteBuffers(1, &mVBO);
+
+            mVAO = 0;
+            mVBO = 0;
+            mStride = 0;
+            mVerticesCount = 0;
         }
     }
 
-    std::shared_ptr<HwWindow> HwWindowManager::CreateWindow(std::string name, std::string title, glm::uvec2 size) {
-        if (ContainsWindow(name)) {
-            throw std::runtime_error("Windows names must be unique");
-        }
-
-        HwWindow::InitParams params = {
-            name,
-            std::move(title),
-            size,
-            this
-        };
-
-        // Cool hack, since constructor is private - cannot do this in normal way
-        std::shared_ptr<HwWindow> window{new HwWindow(params)};
-        mWindows.emplace(std::move(name), window);
-
-        return window;
+    void HwGeometry::Update(size_t offset, size_t size, const void *vertexData) const {
+        assert(offset + size <= GetBufferSize());
+        glBindBuffer(GL_ARRAY_BUFFER, mVBO);
+        glBufferSubData(GL_ARRAY_BUFFER, offset, size, vertexData);
+        glBindBuffer(GL_ARRAY_BUFFER, 0);
     }
 
-    void HwWindowManager::PollEvents() {
-        for (auto& w: mWindows) {
-            w.second->CheckEvents();
-        }
+    void HwGeometry::Draw() const {
+        glBindVertexArray(mVAO);
+        glDrawArrays(mTopology, 0, mVerticesCount);
+        glBindVertexArray(0);
     }
 
-    bool HwWindowManager::ContainsWindow(const std::string &name) const {
-        auto found = mWindows.find(name);
-        return found != mWindows.end();
-    }
-
-    std::shared_ptr<class HwWindow> HwWindowManager::GetWindow(const std::string &name) {
-        auto found = mWindows.find(name);
-        return found != mWindows.end()? found->second: nullptr;
+    size_t HwGeometry::GetBufferSize() const {
+        return mStride * mVerticesCount;
     }
 
 }
