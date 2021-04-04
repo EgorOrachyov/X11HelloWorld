@@ -24,6 +24,7 @@ jobs:
       shell: bash 
       run: |
         sudo apt-get update -y
+        sudo apt-get install xserver-xorg-video-intel libgl1-mesa-dri libgl1-mesa-glx
         sudo apt-get install build-essential libxmu-dev libxi-dev libgl-dev
         sudo apt-get install -y libglx-dev
         sudo apt-get install -y libx11-dev
