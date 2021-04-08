@@ -33,11 +33,12 @@ namespace x11hw {
 
     class HwShader {
     public:
-        HwShader(const char* vertexCode, const char* fragmentCode);
+        HwShader(const char *vertexCode, const char *fragmentCode);
         ~HwShader();
 
         /** Bind shader for drawing */
         void Bind();
+
         /** Unbind shader (default will be used for drawing) */
         void Unbind();
 
@@ -46,7 +47,7 @@ namespace x11hw {
          * @param name Variable name in the shader
          * @param val Value to set
          */
-        void SetFloat(const std::string& name, float val) const;
+        void SetFloat(const std::string &name, float val) const;
 
         /**
          * Set shader uniform variable
@@ -54,22 +55,22 @@ namespace x11hw {
          * @param vec Vector to set
          */
 
-        void SetVec2(const std::string& name, const glm::vec2& vec) const;
+        void SetVec2(const std::string &name, const glm::vec2 &vec) const;
 
         /**
          * Set shader uniform variable
          * @param name Variable name in the shader
          * @param mat Matrix to set
          */
-        void SetMatrix4(const std::string& name, const glm::mat4& mat) const;
+        void SetMatrix4(const std::string &name, const glm::mat4 &mat) const;
 
     private:
-        int GetLocation(const std::string& name) const;
+        int GetLocation(const std::string &name) const;
         void ReleaseInternal();
 
     private:
         static const GLuint MAX_STAGES = 2;
-        bool   mIsBound = false;
+        bool mIsBound = false;
         size_t mStagesCount = 0;
         GLuint mProgram = 0;
         GLuint mStages[MAX_STAGES] = {};

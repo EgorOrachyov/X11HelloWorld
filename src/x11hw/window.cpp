@@ -23,7 +23,9 @@
 ////////////////////////////////////////////////////////////////////////////////////
 
 #include <x11hw/window.hpp>
+#include <x11hw/context.hpp>
 #include <x11hw/window_manager.hpp>
+#include <x11hw/error.hpp>
 
 #include <stdexcept>
 #include <utility>
@@ -33,17 +35,7 @@
 #include <GL/glx.h>
 
 
-#define CHECK_MSG(condition, message) \
-    if (!(condition)) { throw std::runtime_error("X11 Window: \"" #condition "\":" message); } else { }
-
-#define CHECK(condition) CHECK_MSG(condition, "")
-
-
 namespace x11hw {
-
-    static bool IsExtensionSupported(const char *extensions, const char *extension) {
-        return std::strstr(extensions, extension) != nullptr;
-    }
 
     static HwWindow::MouseButton GetMouseButtonFromId(unsigned int id) {
         switch (id) {
@@ -60,119 +52,32 @@ namespace x11hw {
         : mSize(params.size),
           mTitle(std::move(params.title)),
           mName(std::move(params.name)),
-          mManager(params.manager) {
+          mDisplay(params.display),
+          mScreen(params.screen),
+          mManager(params.manager),
+          mContext(params.context) {
+        assert(mDisplay);
         assert(mManager);
+        assert(mContext);
         assert(mSize.x > 0 & mSize.y > 0);
-
-        // Setup connection to the server
-        OpenConnection();
-
-        // Query glx info
-        ValidateGlxVersion();
-
-        // Select "best" framebuffer config
-        SelectFBConfig();
-
-        // Prepare visuals for window creation
-        CreateVisualInfo();
-
-        // Create window
         CreateXWindow();
-
-        // Create glx context
-        CreateContext();
     }
 
     HwWindow::~HwWindow() {
-        glXDestroyContext(mDisplay, mContext);
-        XFree(mVisualInfo);
-        XFreeColormap(mDisplay, mColorMap);
         XDestroyWindow(mDisplay, mHnd);
-        XCloseDisplay(mDisplay);
 
         mHnd = 0;
         mScreen = 0;
         mDisplay = nullptr;
         mContext = nullptr;
-        mFbConfig = nullptr;
-        mVisualInfo = nullptr;
     }
 
     void HwWindow::MakeContextCurrent() {
-        CHECK(glXMakeCurrent(mDisplay, mHnd, mContext));
+        mContext->MakeContextCurrent(mHnd);
     }
 
     void HwWindow::SwapBuffers() {
         glXSwapBuffers(mDisplay, mHnd);
-    }
-
-    void HwWindow::OpenConnection() {
-        mDisplay = XOpenDisplay(nullptr);
-        CHECK_MSG(mDisplay, "Failed to create Display");
-        CHECK(XSync(mDisplay, False));
-
-        mScreen = XDefaultScreen(mDisplay);
-    }
-
-    void HwWindow::ValidateGlxVersion() {
-        GLint glxMajor, glxMinor;
-        glXQueryVersion(mDisplay, &glxMajor, &glxMinor);
-
-        if (glxMajor < GLX_MAJOR_MIN || (glxMajor == GLX_MAJOR_MIN && glxMinor < GLX_MINOR_MIN)) {
-            throw std::runtime_error("GLX 1.2 or greater is required");
-        }
-    }
-
-    void HwWindow::CreateVisualInfo() {
-        mVisualInfo = glXGetVisualFromFBConfig(mDisplay, mFbConfig);
-        CHECK_MSG(mVisualInfo, "Failed to create VisualInfo");
-        CHECK_MSG(mVisualInfo->screen == mScreen, "VisualInfo screen does not match window screen");
-    }
-
-    void HwWindow::SelectFBConfig() {
-        GLint glxAttributes[] = {
-            GLX_X_RENDERABLE, True,
-            GLX_DRAWABLE_TYPE, GLX_WINDOW_BIT,
-            GLX_RENDER_TYPE, GLX_RGBA_BIT,
-            GLX_X_VISUAL_TYPE, GLX_TRUE_COLOR,
-            GLX_RED_SIZE, 8,
-            GLX_GREEN_SIZE, 8,
-            GLX_BLUE_SIZE, 8,
-            GLX_ALPHA_SIZE, 8,
-            GLX_DEPTH_SIZE, 24,
-            GLX_STENCIL_SIZE, 8,
-            GLX_DOUBLEBUFFER, True,
-            None
-        };
-
-        int fbConfigsCount = -1;
-        GLXFBConfig* fbConfigs = glXChooseFBConfig(mDisplay, mScreen, glxAttributes, &fbConfigsCount);
-        CHECK_MSG(fbConfigs && fbConfigsCount > 0, "Failed to retrieve framebuffer configs");
-
-        int selectedConfigId = -1;
-        int bestSamples = -1;
-
-        for (int i = 0; i < fbConfigsCount; i++) {
-            XVisualInfo *visualInfo = glXGetVisualFromFBConfig(mDisplay, fbConfigs[i]);
-
-            if (visualInfo) {
-                int sampleBuffers;
-                int samples;
-
-                glXGetFBConfigAttrib(mDisplay, fbConfigs[i], GLX_SAMPLE_BUFFERS, &sampleBuffers);
-                glXGetFBConfigAttrib(mDisplay, fbConfigs[i], GLX_SAMPLES, &samples);
-
-                if (selectedConfigId < 0 || (sampleBuffers && samples > bestSamples) ) {
-                    selectedConfigId = i;
-                    bestSamples = samples;
-                }
-
-                XFree(visualInfo);
-            }
-        }
-
-        mFbConfig = fbConfigs[selectedConfigId];
-        XFree(fbConfigs);
     }
 
     void HwWindow::CreateXWindow() {
@@ -183,7 +88,8 @@ namespace x11hw {
             ExposureMask       |
             StructureNotifyMask;
 
-        mColorMap = XCreateColormap(mDisplay, XRootWindow(mDisplay, mScreen), mVisualInfo->visual, AllocNone);
+        auto visualInfo = mContext->GetVisualInfo();
+        auto colorMap = mContext->GetColorMap();
 
         unsigned long windowAttributesMask =
             CWBackPixel  |
@@ -195,7 +101,7 @@ namespace x11hw {
         windowAttributes.border_pixel = XBlackPixel(mDisplay, mScreen);
         windowAttributes.background_pixel = XWhitePixel(mDisplay, mScreen);
         windowAttributes.override_redirect = True;
-        windowAttributes.colormap = mColorMap;
+        windowAttributes.colormap = colorMap;
         windowAttributes.event_mask = mEventMask;
 
         mHnd = XCreateWindow(
@@ -204,9 +110,9 @@ namespace x11hw {
             0, 0,
             mSize.x, mSize.y,
             1,
-            mVisualInfo->depth,
+            visualInfo->depth,
             InputOutput,
-            mVisualInfo->visual,
+            visualInfo->visual,
             windowAttributesMask,
             &windowAttributes
         );
@@ -222,43 +128,6 @@ namespace x11hw {
         // Show the window
         CHECK(XClearWindow(mDisplay, mHnd));
         CHECK(XMapRaised(mDisplay, mHnd));
-    }
-
-    void HwWindow::CreateContext() {
-        // Query extensions
-        const char *glxExtensions = glXQueryExtensionsString(mDisplay, mScreen);
-
-        if (IsExtensionSupported(glxExtensions, "GLX_ARB_create_context")) {
-            int contextAttributes[] = {
-                GLX_CONTEXT_MAJOR_VERSION_ARB, 3,
-                GLX_CONTEXT_MINOR_VERSION_ARB, 2,
-                GLX_CONTEXT_FLAGS_ARB, GLX_CONTEXT_FORWARD_COMPATIBLE_BIT_ARB,
-                None
-            };
-
-            typedef GLXContext (*glXCreateContextAttribsARBFunction)(
-                Display*,
-                GLXFBConfig,
-                GLXContext,
-                Bool,
-                const int*
-            );
-
-            auto glXCreateContextAttribsARB = (glXCreateContextAttribsARBFunction)
-                    glXGetProcAddressARB((const GLubyte *) "glXCreateContextAttribsARB");
-            CHECK_MSG(glXCreateContextAttribsARB, "Failed to get glXCreateContextAttribsARB function");
-
-            mContext = glXCreateContextAttribsARB(mDisplay, mFbConfig, nullptr, true, contextAttributes);
-        }
-        else {
-            // Fallback to simple setup
-            mContext = glXCreateNewContext(mDisplay, mFbConfig, GLX_RGBA_TYPE, nullptr, True);
-        }
-        CHECK_MSG(mContext, "Failed to create GL context");
-
-        // Actually bind and make current for convenience
-        MakeContextCurrent();
-        QueryFboSize();
     }
 
     void HwWindow::QueryFboSize() {
@@ -277,53 +146,51 @@ namespace x11hw {
         }
     }
 
-    void HwWindow::CheckEvents() {
-        while (XPending(mDisplay) > 0)
-        {
-            XEvent event;
-            XNextEvent(mDisplay, &event);
-
-            switch (event.type) {
-                case ButtonPress: {
-                    EventData eventData;
-                    eventData.type = EventType::MouseButtonPressed;
-                    eventData.mouseButton = GetMouseButtonFromId(event.xbutton.button);
-                    eventData.mousePosition = {event.xbutton.x, event.xbutton.y};
-                    NotifyInput(eventData);
-                    break;
-                }
-                case ButtonRelease: {
-                    EventData eventData;
-                    eventData.type = EventType::MouseButtonReleased;
-                    eventData.mouseButton = GetMouseButtonFromId(event.xbutton.button);
-                    eventData.mousePosition = {event.xbutton.x, event.xbutton.y};
-                    NotifyInput(eventData);
-                    break;
-                }
-                case MotionNotify: {
-                    EventData eventData;
-                    eventData.type = EventType::MouseMoved;
-                    eventData.mouseButton = GetMouseButtonFromId(event.xbutton.button);
-                    eventData.mousePosition = {event.xbutton.x, event.xbutton.y};
-                    NotifyInput(eventData);
-                    break;
-                }
-                case ClientMessage: {
-                    if (event.xclient.data.l[0] == (long) mAtomWmDeleteWindow) {
-                        NotifyClose();
-                        break;
-                    }
-                }
-                case ConfigureNotify: {
-                    XConfigureEvent xce = event.xconfigure;
-                    mSize = { xce.width, xce.height};
-                    QueryFboSize();
-                    break;
-                }
-                default:
-                    break;
+    void HwWindow::ProcessEvent(const XEvent& event) {
+        switch (event.type) {
+            case ButtonPress: {
+                EventData eventData;
+                eventData.type = EventType::MouseButtonPressed;
+                eventData.mouseButton = GetMouseButtonFromId(event.xbutton.button);
+                eventData.mousePosition = {event.xbutton.x, event.xbutton.y};
+                NotifyInput(eventData);
+                break;
             }
+            case ButtonRelease: {
+                EventData eventData;
+                eventData.type = EventType::MouseButtonReleased;
+                eventData.mouseButton = GetMouseButtonFromId(event.xbutton.button);
+                eventData.mousePosition = {event.xbutton.x, event.xbutton.y};
+                NotifyInput(eventData);
+                break;
+            }
+            case MotionNotify: {
+                EventData eventData;
+                eventData.type = EventType::MouseMoved;
+                eventData.mouseButton = GetMouseButtonFromId(event.xbutton.button);
+                eventData.mousePosition = {event.xbutton.x, event.xbutton.y};
+                NotifyInput(eventData);
+                break;
+            }
+            case ClientMessage: {
+                if (event.xclient.data.l[0] == (long) mAtomWmDeleteWindow) {
+                    NotifyClose();
+                    break;
+                }
+            }
+            case ConfigureNotify: {
+                XConfigureEvent xce = event.xconfigure;
+                mSize = { xce.width, xce.height};
+                QueryFboSize();
+                break;
+            }
+            default:
+                break;
         }
+    }
+
+    Window HwWindow::GetHnd() const {
+        return mHnd;
     }
 
 }

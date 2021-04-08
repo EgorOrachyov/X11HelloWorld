@@ -3,6 +3,7 @@ project(X11HelloWorld)
 
 message(STATUS "Use X11 library for native window management")
 find_package(X11 REQUIRED)
+find_package(OpenGL REQUIRED)
 
 message(STATUS "Use GLEW for OpenGL extensions and functions loading")
 set(glew-cmake_BUILD_SHARED OFF CACHE BOOL "" FORCE)
@@ -20,6 +21,9 @@ target_include_directories(glm INTERFACE deps/glm)
 
 set(X11HELLOWORLD_SOURCES
         src/x11hw/main.cpp
+        src/x11hw/error.hpp
+        src/x11hw/context.cpp
+        src/x11hw/context.hpp
         src/x11hw/window.cpp
         src/x11hw/window.hpp
         src/x11hw/window_manager.cpp
@@ -35,6 +39,7 @@ add_executable(x11helloworld ${X11HELLOWORLD_SOURCES})
 
 target_include_directories(x11helloworld PRIVATE src)
 target_link_libraries(x11helloworld PRIVATE X11)
+target_link_libraries(x11helloworld PRIVATE OpenGL::GLX)
 target_link_libraries(x11helloworld PRIVATE libglew_static)
 target_link_libraries(x11helloworld PRIVATE glm)
 

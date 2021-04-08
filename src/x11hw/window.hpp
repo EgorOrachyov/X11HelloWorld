@@ -27,7 +27,6 @@
 
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
-#include <GL/glx.h>
 #include <glm/vec2.hpp>
 #include <functional>
 #include <string>
@@ -56,12 +55,13 @@ namespace x11hw {
             glm::ivec2 mousePosition{};
         };
 
-        HwWindow(const HwWindow& other) = delete;
-        HwWindow(HwWindow&& other) noexcept = delete;
+        HwWindow(const HwWindow &) = delete;
+        HwWindow(HwWindow &&) noexcept = delete;
         ~HwWindow();
 
         /** Makes GL context of this window current for drawing */
         void MakeContextCurrent();
+
         /** Preset back-buffer content to the screen */
         void SwapBuffers();
 
@@ -71,7 +71,7 @@ namespace x11hw {
          * @param callback The function to call
          */
         template<typename Callback>
-        void SubscribeOnInput(Callback&& callback) {
+        void SubscribeOnInput(Callback &&callback) {
             mOnInputCallbacks.emplace_back(std::forward<Callback>(callback));
         }
 
@@ -81,66 +81,62 @@ namespace x11hw {
          * @param callback The function to call
          */
         template<typename Callback>
-        void SubscribeOnClose(Callback&& callback) {
+        void SubscribeOnClose(Callback &&callback) {
             mOnCloseCallbacks.emplace_back(std::forward<Callback>(callback));
         }
 
         /** @return Window Name (id) */
         const std::string &GetName() const { return mName; };
+
         /** @return Window title (shown on screen) */
         const std::string &GetTitle() const { return mTitle; }
+
         /** @return Window size (in units) */
         const glm::uvec2 &GetSize() const { return mSize; }
+
         /** @return Framebuffer size (in pixels) */
         const glm::uvec2 &GetFramebufferSize() const { return mFramebufferSize; }
 
     private:
-
         friend class HwWindowManager;
 
         struct InitParams {
             std::string name;
             std::string title;
             glm::uvec2 size;
-            class HwWindowManager* manager;
+            Display *display;
+            int screen;
+            class HwWindowManager *manager;
+            class HwContext *context;
         };
 
-        explicit HwWindow(InitParams& params);
+        explicit HwWindow(InitParams &params);
 
-        void OpenConnection();
-        void ValidateGlxVersion();
-        void CreateVisualInfo();
-        void SelectFBConfig();
         void CreateXWindow();
-        void CreateContext();
         void QueryFboSize();
-        void NotifyInput(const EventData& event);
+        void NotifyInput(const EventData &event);
         void NotifyClose();
-        void CheckEvents();
+        void ProcessEvent(const XEvent &event);
+
+        Window GetHnd() const;
 
     private:
-        static const int GLX_MAJOR_MIN = 1;
-        static const int GLX_MINOR_MIN = 2;
-
         std::string mName;
         std::string mTitle;
-        glm::uvec2  mSize;
-        glm::uvec2  mFramebufferSize{};
+        glm::uvec2 mSize;
+        glm::uvec2 mFramebufferSize{};
 
-        HwWindowManager* mManager;
+        class HwWindowManager *mManager;
+        class HwContext *mContext;
 
-        long         mEventMask = 0;
-        Atom         mAtomWmDeleteWindow{};
-        Window       mHnd{};
-        int          mScreen;
-        Display*     mDisplay = nullptr;
-        GLXContext   mContext = nullptr;
-        GLXFBConfig  mFbConfig = nullptr;
-        Colormap     mColorMap;
-        XVisualInfo* mVisualInfo = nullptr;
+        long mEventMask = 0;
+        Atom mAtomWmDeleteWindow{};
+        Window mHnd{};
+        int mScreen = -1;
+        Display *mDisplay = nullptr;
 
-        std::vector<std::function<void()>>                       mOnCloseCallbacks;
-        std::vector<std::function<void(const EventData& event)>> mOnInputCallbacks;
+        std::vector<std::function<void()>> mOnCloseCallbacks;
+        std::vector<std::function<void(const EventData &event)>> mOnInputCallbacks;
     };
 
 }

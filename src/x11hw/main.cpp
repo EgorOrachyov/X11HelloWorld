@@ -33,8 +33,8 @@
 #include <stdexcept>
 #include <iostream>
 
-const char* GetVertexStageCode() {
-    return  R"(
+const char *GetVertexStageCode() {
+    return R"(
         #version 330 core
         layout (location = 0) in vec2 position;
         layout (location = 1) in vec3 color;
@@ -53,8 +53,8 @@ const char* GetVertexStageCode() {
     )";
 }
 
-const char* GetFragmentStageCode() {
-    return  R"(
+const char *GetFragmentStageCode() {
+    return R"(
         #version 330 core
         layout (location = 0) out vec4 outColor;
 
@@ -79,30 +79,30 @@ x11hw::HwGeometry::InitParams GetTriangleParams() {
     return params;
 }
 
-const void* GetTriangleData() {
+const void *GetTriangleData() {
     static const float vertices[] = {
-    //  vec2 position      vec3 color
-         0.0f,  0.0f,      1.0f, 0.0f, 0.0f,
-        -0.5f,  1.0f,      0.0f, 1.0f, 0.0f,
-         0.5f,  1.0f,      0.0f, 0.0f, 1.0f
+     //  vec2 position      vec3 color
+         0.0f,  0.0f,       1.0f, 0.0f, 0.0f,
+        -0.5f,  1.0f,       0.0f, 1.0f, 0.0f,
+         0.5f,  1.0f,       0.0f, 0.0f, 1.0f
     };
 
     return vertices;
 }
 
-int main(int argc, const char* const *argv) {
+int main(int, const char *const *) {
     // Window (background color = #25854b) setting
-    glm::vec4   clearColor{0.145, 0.522, 0.294, 1.0f};
-    glm::uvec2  windowSize{1280, 720};
+    glm::vec4 clearColor{0.145, 0.522, 0.294, 1.0f};
+    glm::uvec2 windowSize{1280, 720};
     std::string name = "MAIN_WINDOW";
     std::string title = "X11 Hello World!";
-    float       gamma = 2.2f;
+    float gamma = 2.2f;
 
     // For triangle drawing
-    bool        shouldClose = false;
-    bool        showTriangle = false;
-    glm::ivec2  mousePosition;
-    glm::vec2   triangleSize{120.0f, 120.0f};
+    bool shouldClose = false;
+    bool showTriangle = false;
+    glm::ivec2 mousePosition;
+    glm::vec2 triangleSize{120.0f, 120.0f};
 
     // Create window manager and primary window
     auto windowManager = std::make_shared<x11hw::HwWindowManager>();
@@ -122,17 +122,19 @@ int main(int argc, const char* const *argv) {
     });
 
     // Subscribe for input events to move triangle
-    window->SubscribeOnInput([&](const x11hw::HwWindow::EventData& event) {
+    window->SubscribeOnInput([&](const x11hw::HwWindow::EventData &event) {
         using namespace x11hw;
 
-        if (event.type == HwWindow::EventType::MouseButtonPressed) {
+        if (event.type == HwWindow::EventType::MouseButtonPressed &&
+            event.mouseButton == HwWindow::MouseButton::Left) {
             showTriangle = true;
             mousePosition = event.mousePosition;
         }
         if (event.type == HwWindow::EventType::MouseMoved) {
             mousePosition = event.mousePosition;
         }
-        if (event.type == HwWindow::EventType::MouseButtonReleased) {
+        if (event.type == HwWindow::EventType::MouseButtonReleased &&
+            event.mouseButton == HwWindow::MouseButton::Left) {
             showTriangle = false;
             mousePosition = event.mousePosition;
         }
@@ -147,6 +149,7 @@ int main(int argc, const char* const *argv) {
         // Query input
         windowManager->PollEvents();
 
+        // Setup drawing area and clear color buffer
         glViewport(0, 0, window->GetSize().x, window->GetSize().y);
         glClearColor(clearColor.x, clearColor.y, clearColor.z, clearColor.w);
         glClear(GL_COLOR_BUFFER_BIT);

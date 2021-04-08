@@ -22,55 +22,12 @@
 // SOFTWARE.                                                                      //
 ////////////////////////////////////////////////////////////////////////////////////
 
-#ifndef X11HELLOWORLD_GEOMETRY_HPP
-#define X11HELLOWORLD_GEOMETRY_HPP
+#ifndef X11HELLOWORLD_ERROR_HPP
+#define X11HELLOWORLD_ERROR_HPP
 
-#include <GL/glew.h>
-#include <vector>
+#define CHECK_MSG(condition, message) \
+    if (!(condition)) { throw std::runtime_error("X11hw: \"" #condition "\":" message); } else { }
 
-namespace x11hw {
+#define CHECK(condition) CHECK_MSG(condition, "")
 
-    class HwGeometry {
-    public:
-        struct Attribute {
-            size_t offset;
-            size_t components;
-            GLenum baseType;
-            bool normalize;
-        };
-
-        struct InitParams {
-            size_t verticesCount = 0;
-            size_t stride = 0;
-            GLenum topology = 0;
-            std::vector<Attribute> attributes;
-        };
-
-        explicit HwGeometry(const InitParams& params);
-        ~HwGeometry();
-
-        /**
-         * Update vertex data of the geometry
-         * @param offset Byte offset
-         * @param size Byte size
-         * @param vertexData Data to write
-         */
-        void Update(size_t offset, size_t size, const void *vertexData) const;
-
-        /** Issue geometry draw */
-        void Draw() const;
-
-        /** @return Vertex buffer size in bytes */
-        size_t GetBufferSize() const;
-
-    private:
-        size_t mVerticesCount = 0;
-        size_t mStride = 0;
-        GLenum mTopology = 0;
-        GLuint mVAO = 0;
-        GLuint mVBO = 0;
-    };
-
-}
-
-#endif //X11HELLOWORLD_GEOMETRY_HPP
+#endif //X11HELLOWORLD_ERROR_HPP
