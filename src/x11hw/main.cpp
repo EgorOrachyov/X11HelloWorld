@@ -32,6 +32,8 @@
 
 #include <stdexcept>
 #include <iostream>
+#include <chrono>
+#include <thread>
 
 const char *GetVertexStageCode() {
     return R"(
@@ -110,6 +112,7 @@ int main(int, const char *const *) {
 
     // Will draw only into single window
     window->MakeContextCurrent();
+    window->SetSwapInterval(1);
 
     if (glewInit() != GLEW_OK) {
         std::cerr << "Failed to init GLEW" << std::endl;
@@ -145,7 +148,25 @@ int main(int, const char *const *) {
     auto geometry = std::make_shared<x11hw::HwGeometry>(GetTriangleParams());
     geometry->Update(0, geometry->GetBufferSize(), GetTriangleData());
 
+    // Frame rate control
+    using microseconds = std::chrono::microseconds;
+    using timer = std::chrono::steady_clock;
+    auto desiredDelta = microseconds{16666};
+    auto prevTime = timer::now();
+
     while (!shouldClose) {
+        auto currentTime = timer::now();
+        auto delta = currentTime - prevTime;
+
+        // Sleep if update is too fast
+        if (delta < desiredDelta) {
+            auto toSleep = desiredDelta - delta;
+            std::this_thread::sleep_until(currentTime + toSleep);
+            currentTime = timer::now();
+        }
+
+        prevTime = currentTime;
+
         // Query input
         windowManager->PollEvents();
 

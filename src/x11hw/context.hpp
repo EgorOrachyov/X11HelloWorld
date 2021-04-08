@@ -49,12 +49,18 @@ namespace x11hw {
         void CreateContext();
         bool IsCreated();
         void MakeContextCurrent(Window window);
+        void SwapBuffers(Window window);
+        void SetSwapInterval(Window window, int interval);
 
         XVisualInfo *GetVisualInfo() const;
         GLXFBConfig GetFBConfig() const;
         Colormap GetColorMap() const;
 
     private:
+        typedef void (*glXSwapIntervalEXT)(Display*,GLXDrawable,int);
+        typedef int (*glXSwapIntervalSGI)(int);
+        typedef int (*glXSwapIntervalMESA)(int);
+
         void ValidateGlxVersion();
         void SelectFBConfig();
         void CreateVisualInfo();
@@ -65,6 +71,14 @@ namespace x11hw {
         GLXFBConfig mFbConfig = nullptr;
         Colormap mColorMap{};
         XVisualInfo *mVisualInfo = nullptr;
+
+        glXSwapIntervalEXT mglXSwapIntervalEXT = nullptr;
+        glXSwapIntervalMESA mglXSwapIntervalMESA = nullptr;
+        glXSwapIntervalSGI mglXSwapIntervalSGI = nullptr;
+
+        bool mglXSwapIntervalEXTSupport = false;
+        bool mglXSwapIntervalMESASupport = false;
+        bool mglXSwapIntervalSGISupport = false;
     };
 
 }

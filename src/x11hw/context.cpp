@@ -124,6 +124,21 @@ namespace x11hw {
         // Query extensions
         const char *glxExtensions = glXQueryExtensionsString(mDisplay, mScreen);
 
+        if (IsExtensionSupported(glxExtensions, "GLX_EXT_swap_control")) {
+            mglXSwapIntervalEXT = (glXSwapIntervalEXT) glXGetProcAddressARB((const GLubyte *) "glXSwapIntervalEXT");
+            mglXSwapIntervalEXTSupport = mglXSwapIntervalEXT != nullptr;
+        }
+
+        if (IsExtensionSupported(glxExtensions, "GLX_MESA_swap_control")) {
+            mglXSwapIntervalMESA = (glXSwapIntervalMESA) glXGetProcAddressARB((const GLubyte *) "glXSwapIntervalMESA");
+            mglXSwapIntervalMESASupport = mglXSwapIntervalMESA != nullptr;
+        }
+
+        if (IsExtensionSupported(glxExtensions, "GLX_SGI_swap_control")) {
+            mglXSwapIntervalSGI = (glXSwapIntervalSGI) glXGetProcAddressARB((const GLubyte *) "glXSwapIntervalSGI");
+            mglXSwapIntervalSGISupport = mglXSwapIntervalSGI != nullptr;
+        }
+
         if (IsExtensionSupported(glxExtensions, "GLX_ARB_create_context")) {
             int contextAttributes[] = {
                     GLX_CONTEXT_MAJOR_VERSION_ARB, 3,
@@ -161,6 +176,26 @@ namespace x11hw {
     void HwContext::MakeContextCurrent(Window window) {
         assert(IsCreated());
         CHECK(glXMakeCurrent(mDisplay, window, mContext));
+    }
+
+    void HwContext::SwapBuffers(Window window) {
+        assert(IsCreated());
+        glXSwapBuffers(mDisplay, window);
+    }
+
+    void HwContext::SetSwapInterval(Window window, int interval) {
+        assert(IsCreated());
+        assert(interval >= 0);
+
+        if (mglXSwapIntervalEXTSupport) {
+            mglXSwapIntervalEXT(mDisplay, window, interval);
+        }
+        else if (mglXSwapIntervalMESASupport) {
+            mglXSwapIntervalMESA(interval);
+        }
+        else if (mglXSwapIntervalSGISupport) {
+            mglXSwapIntervalSGI(interval);
+        }
     }
 
     XVisualInfo * HwContext::GetVisualInfo() const {

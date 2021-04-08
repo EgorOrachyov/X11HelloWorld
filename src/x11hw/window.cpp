@@ -77,7 +77,11 @@ namespace x11hw {
     }
 
     void HwWindow::SwapBuffers() {
-        glXSwapBuffers(mDisplay, mHnd);
+        mContext->SwapBuffers(mHnd);
+    }
+
+    void HwWindow::SetSwapInterval(int interval) {
+        mContext->SetSwapInterval(mHnd, interval);
     }
 
     void HwWindow::CreateXWindow() {

@@ -65,6 +65,9 @@ namespace x11hw {
         /** Preset back-buffer content to the screen */
         void SwapBuffers();
 
+        /** Sets swap interval */
+        void SetSwapInterval(int interval);
+
         /**
          * Add listener for window input events (requested when user presses red x button)
          * @tparam Callback Type of a function to call
