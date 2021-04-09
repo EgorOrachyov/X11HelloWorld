@@ -42,8 +42,6 @@ So, the set of required tools can be installed as follows (may be too excessive)
 
 ```shell script
 $ sudo apt-get update -y
-$ sudo apt-get install -y build-essential
-$ sudo apt-get install -y cmake
 $ sudo apt-get install -y libgl1-mesa-dri libgl1-mesa-glx libgl1-mesa-dev
 $ sudo apt-get install -y libxmu-dev libxi-dev libgl-dev libglx-dev
 $ sudo apt-get install -y libx11-dev
