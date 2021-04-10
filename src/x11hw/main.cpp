@@ -199,10 +199,6 @@ int main(int, const char *const *) {
         window->SwapBuffers();
     }
 
-    // Explicitly release in reverse order for safety
-    window = nullptr;
-    windowManager = nullptr;
-
     return 0;
 }
 

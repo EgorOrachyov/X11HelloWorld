@@ -39,7 +39,16 @@ namespace x11hw {
         HwWindowManager(HwWindowManager&&) noexcept = delete;
         ~HwWindowManager();
 
-        std::shared_ptr<class HwWindow> CreateWindow(std::string name, std::string title, glm::uvec2 size);
+        /**
+         * Create new window
+         *
+         * @param name Unique window identifier
+         * @param title Window title
+         * @param size Window size in units
+         *
+         * @return Created window ptr
+         */
+        class HwWindow* CreateWindow(std::string name, std::string title, glm::uvec2 size);
 
         /** Process system events (call for each update tick for smooth response) */
         void PollEvents();
@@ -56,17 +65,17 @@ namespace x11hw {
          * @param name Window unique name
          * @return Window or null if failed to find
          */
-        std::shared_ptr<class HwWindow> GetWindow(const std::string& name);
+        class HwWindow* GetWindow(const std::string& name);
 
     private:
         friend class HwWindow;
 
-        std::unordered_map<std::string, std::shared_ptr<class HwWindow>> mWindows;
-        std::unordered_map<Window, std::shared_ptr<class HwWindow>> mX11Windows;
+        std::unordered_map<std::string, std::unique_ptr<class HwWindow>> mWindows;
+        std::unordered_map<Window, class HwWindow*> mX11Windows;
         std::unique_ptr<class HwContext> mContext;
 
         Display* mDisplay = nullptr;
-        int      mScreen = -1;
+        int mScreen = -1;
     };
 
 }

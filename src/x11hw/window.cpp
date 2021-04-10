@@ -54,10 +54,8 @@ namespace x11hw {
           mName(std::move(params.name)),
           mDisplay(params.display),
           mScreen(params.screen),
-          mManager(params.manager),
           mContext(params.context) {
         assert(mDisplay);
-        assert(mManager);
         assert(mContext);
         assert(mSize.x > 0 & mSize.y > 0);
         CreateXWindow();

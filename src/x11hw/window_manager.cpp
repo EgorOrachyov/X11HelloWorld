@@ -45,19 +45,14 @@ namespace x11hw {
 
         // Clear X11 mappings
         mX11Windows.clear();
-
-        // Explicitly release windows
-        for (auto& entry: mWindows) {
-            assert(entry.second.use_count() == 1);
-            entry.second = nullptr;
-        }
+        mWindows.clear();
 
         // Close connection
         XCloseDisplay(mDisplay);
         mDisplay = nullptr;
     }
 
-    std::shared_ptr<HwWindow> HwWindowManager::CreateWindow(std::string name, std::string title, glm::uvec2 size) {
+    HwWindow* HwWindowManager::CreateWindow(std::string name, std::string title, glm::uvec2 size) {
         if (ContainsWindow(name)) {
             throw std::runtime_error("Windows names must be unique");
         }
@@ -68,22 +63,23 @@ namespace x11hw {
             size,
             mDisplay,
             mScreen,
-            this,
             mContext.get()
         };
 
         // Cool hack, since constructor is private - cannot do this in normal way
-        std::shared_ptr<HwWindow> window{new HwWindow(params)};
-        mWindows.emplace(std::move(name), window);
-        mX11Windows.emplace(window->GetHnd(), window);
+        std::unique_ptr<HwWindow> window{new HwWindow(params)};
+        auto windowPtr = window.get();
+
+        mWindows.emplace(std::move(name), std::move(window));
+        mX11Windows.emplace(windowPtr->GetHnd(), windowPtr);
 
         // If we create first window, then we must init context
         if (mWindows.size() == 1) {
             mContext->CreateContext();
-            window->MakeContextCurrent();
+            windowPtr->MakeContextCurrent();
         }
 
-        return window;
+        return windowPtr;
     }
 
     void HwWindowManager::PollEvents() {
@@ -102,9 +98,9 @@ namespace x11hw {
         return found != mWindows.end();
     }
 
-    std::shared_ptr<class HwWindow> HwWindowManager::GetWindow(const std::string &name) {
+    HwWindow* HwWindowManager::GetWindow(const std::string &name) {
         auto found = mWindows.find(name);
-        return found->second;
+        return found != mWindows.end()? found->second.get(): nullptr;
     }
 
 }

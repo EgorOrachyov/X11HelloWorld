@@ -109,7 +109,6 @@ namespace x11hw {
             glm::uvec2 size;
             Display *display;
             int screen;
-            class HwWindowManager *manager;
             class HwContext *context;
         };
 
@@ -129,14 +128,13 @@ namespace x11hw {
         glm::uvec2 mSize;
         glm::uvec2 mFramebufferSize{};
 
-        class HwWindowManager *mManager;
-        class HwContext *mContext;
-
         long mEventMask = 0;
         Atom mAtomWmDeleteWindow{};
         Window mHnd{};
         int mScreen = -1;
         Display *mDisplay = nullptr;
+
+        class HwContext *mContext;
 
         std::vector<std::function<void()>> mOnCloseCallbacks;
         std::vector<std::function<void(const EventData &event)>> mOnInputCallbacks;
